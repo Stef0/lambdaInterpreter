@@ -36,18 +36,20 @@ class Node(object):
         self.l = None
         self.r = None
 
-        self.betanormal = None     
+        self.betanormal = None  
         
-        self.var = []
+        self.limit = None
+        
+        self.name = None
+        
+        self.var = set()
+        self.freshVar = set()
     
-
       
     def addL(self, obj):
                 
         self.l = obj
         
-        if self.data == '%':
-            self.var += obj.data
       
     def addR(self, obj):
                 
@@ -66,6 +68,52 @@ class Node(object):
             string = self.data
             
         return string
+    
+    def getVar(self):
+        
+        if self.var:
+            return
+        
+        bound = []
+        
+        def recCall(node, var, freshVar, bound):
+            
+            if node.data.islower():
+                var.add(node.data)
+                if not(node.data in bound):
+                   freshVar.add(node.data)
+                return
+            
+            if node.data.isupper():
+                return
+            
+            if node.data == '%':
+                var.add(node.l.data)
+                bound += node.l.data
+                recCall(node.r, var, freshVar, bound)
+            
+            if node.data == '@':
+                recCall(node.r, var, freshVar, bound)
+                recCall(node.l, var, freshVar, bound)
+        
+        recCall(self, self.var, self.freshVar, bound)
+        
+    def alphaConv(self, old, new):
+        
+        if old in self.var:
+            self.var.remove(old)
+            self.var.add(new)
+            
+        if old in self.freshVar:
+            self.freshVar.remove(old)
+            self.freshVar.add(new)
+            
+        if self.data == old:
+            self.data = new
+        elif self.data == '@' or self.data == '%':
+            self.l.alphaConv(old,new)
+            self.r.alphaConv(old,new)
+            
 
         
 
@@ -141,8 +189,9 @@ Z = parser('(%x.x)')
 
 parser('(%x.(x x))')
 
+X = parser('(%x.((x y) (%x.(%z.(z x)))))')
 
-A = parser('(%x.((x y) (%x.(%z.(z x)))))')        
+A = parser('(%x.((x y) (%x.(%z.((z x) (k x))))))')        
 B = parser('((%x.(x x)) (%x.y))')
 
 

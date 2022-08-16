@@ -1,83 +1,69 @@
-from lambdaClass import parser
+from lambdaClass import parser, Node
+
+import time
 
 
-def substitute(lam, x, M, dic):
     
+def CASub(term, var, sTerm): 
     '''
-    lam is from the class Node
-    x is the variable name to be substituted with node M,
-    dic is the dictionary of named lambda terms
-    
+    capture avoiding substitution of sTerm for var in term
     '''
-      
-    if lam.data == '%':
-        substitute(lam.child2, x, M, dic)
+    if term.data == var.data:
+        term.data = sTerm.data
+        term.l = sTerm.l
+        term.r = sTerm.r
         
-    elif lam.data == '@':
-        substitute(lam.child1, x, M, dic)
-        substitute(lam.child2, x, M, dic)        
-       
-    elif lam.data == x:
-        lam.data = M.data
-        lam.child1 = M.child1
-        lam.child2 = M.child2
+    elif term.data == '@':
+        CASub(term.l, var, sTerm)
+        CASub(term.r, var, sTerm) 
         
-# =============================================================================
-#     elif lam.data.isupper(): #is this necessary?
-# 
-#         extend(lam, dic)
-#         substitute(lam, x, M, dic)
-# =============================================================================
+    elif term.data =='%' and term.l != var:
         
-    else:
+        sTerm.getVar()
+        if term.l in sTerm.freshVar:
+            freshify(term, term.l, sTerm.freshVar)
+        
+        CASub(term.r, var, sTerm) 
+        
+        
+        
+    elif term.data =='%' and term.l == var:
         return
     
-    
-    
-            
-def extend(lam, dic):
-    '''
-    lam is a named lambda term and dic is a dictionary of terms, 
-    lam is substituted by it's term found in the dictionary
-    '''
 
     
+def freshify(term, var, badSet): 
+    '''
+    in term, make the var fresh, with a new var that is not in badSet
+    ''' 
+    new = var
+    while new in badSet:
+        new +='1'
     
+    term.alphaConv(var,new)    
+
+            
+def extend(lam, dic):
+    
+    '''
+    lam is a named lambda term and dic is a dictionary of terms, 
+    lam is substituted by its term found in the dictionary
+    '''
+   
     if not lam.data.isupper():
         raise Exception("WTF you should extend terms")
     elif not lam.data in dic:
         raise Exception("WTF the term that you are trying to extend is not in dic")
     else:
-        
-        name = lam.data
-        freshVar(dic[lam.data], name)
-        
+                
         name = dic[lam.data].data
-        c1 = dic[lam.data].child1   
-        c2 = dic[lam.data].child2         
+        left = dic[lam.data].l.show()
+        right = dic[lam.data].r.show()
+        c1 = parser(left)   
+        c2 = parser(right)      
         lam.data = name
-        lam.child1 = c1
-        lam.child2 = c2
-
-def freshVar(lam, name):
-    '''
-    lam is a lambda term, we want to make fresh variables for it. we append name to all its variables
-    this is inefficient as fuck
-    '''
-
-    if lam.data.islower():
-        lam.data = lam.data + name
-    
-    if lam.child1 == None:
-        return
-    else: 
-        freshVar(lam.child1,name)
-    
-    if lam.child2 == None:
-        return
-    else: 
-        freshVar(lam.child2,name)    
-
+        lam.l = c1
+        lam.r = c2
         
     
 def betaOpHead(lam, dic):
@@ -91,47 +77,123 @@ def betaOpHead(lam, dic):
     if lam.data == '%' : 
         lam.betanormal = True
         return lam
+    
     elif lam.data == '@' :
-        if lam.child1.data == '%':
-            
-            lam1 = lam.child1.child2
-            substitute(lam1, lam.child1.child1.data, lam.child2, dic)
-            
-            return lam1
-        else:
-            # recursive case? application of type (A B) (C D)
+
+        if lam.l.data == '%':
+            var = lam.l.l
+            term = lam.l.r  
+            CASub(term, var, lam.r)
+            return term
+        
+        elif lam.l.data.islower():
             return lam
+        
+        elif lam.l.data.isupper():
+            extend(lam.l, dic)
+            lam = betaOpHead(lam, dic)
+            return lam
+        
+        else:
+            lam1 = betaOpHead(lam.l, dic)
+            lam.l = lam1
+            return lam# recursive case? application of type (A B) (C D)
+            
     else:
         lam.betanormal = True
         return lam
     
     
-def betaHeadRec(lam, dic, limit = 100):
-    a = lam
-    while (not a.betanormal) and limit>0:
-        a = betaOpHead(a,dic)
+def betaHeadRec(lam, dic, limit = 100, func = betaOpHead):
+    
+    initialLimit = limit
+    
+    while (not lam.betanormal) or limit>0:
+        lam = func(lam,dic)
         limit = limit - 1
     
     if lam.betanormal == True:
-        return a
+        return lam
     if limit == 0:
-        return "limit of applications reached"
+        lam.limit = initialLimit
+        print("limit of applications reached")
         
+        return lam
+     
+    
+    
+def apply(func1, func2, name = 'temp'):
+    ''' given two strings of 2 lambda terms, returns their application '''
+    a = Node('@')
+    a.l = Node(func1)
+    a.r = Node(func2)
+    return a
 
-
+def putInDic(func, name, dic):
+    '''
+    puts the term func in the dictionary dic, with name
+    '''
+    dic[name] = func
+    func.name = name
+        
     
 A = parser('(%x.((x y) (%x.(%z.(z x)))))')        
 B = parser('((%x.(x x)) (%x.y))')
 
-T = parser('(%x.(x x))')
-Z = parser('(%x.x)')
-
+ID = parser('(%x.x)')
+DUB = parser('(%x.(x x))')
+X = parser('(%x.y)')
+C = parser('((DUB ID) (%x.f))')
 dic = {}
+
+dic[A] = 'A'
+
 dic['A'] = A
 dic['B'] = B
+dic['X'] = X
+dic['DUB'] = DUB
+dic['ID'] = ID
 
-C = parser('B')
 
-substitute(T, 'x', Z, dic)
+#CASub(T, parser('x'), Z)
 
 B = betaOpHead(B, dic)    
+C1 = betaOpHead(C, dic)  
+C = betaHeadRec(C,dic)
+
+
+
+start = time.time()
+for i in range(100):
+    TRUE  = parser('(%x.(%y.x))')
+    FALSE = parser('(%x.(%y.y))')
+    OR  = parser('(%x.(%y.((x TRUE) y)))')
+    dic = {}
+    dic['TRUE'] = TRUE
+    dic['FALSE'] = FALSE
+    dic['OR'] = OR
+    test = parser('((OR TRUE) FALSE)')
+    #test = betaHeadRec1(test, dic)
+end = time.time()
+time1 = ((end - start)/100)
+print((end - start)/100)
+
+start = time.time()
+for i in range(100):
+    TRUE  = parser('(%x.(%y.x))')
+    FALSE = parser('(%x.(%y.y))')
+    OR  = parser('(%x.(%y.((x TRUE) y)))')
+    dic = {}
+    dic['TRUE'] = TRUE
+    dic['FALSE'] = FALSE
+    dic['OR'] = OR
+    test = apply (apply(OR, TRUE), FALSE)
+    test = betaHeadRec(test, dic)
+end = time.time()
+time2 = ((end - start)/100)
+print((end - start)/100)
+
+print(time2 - time1)
+
+
+

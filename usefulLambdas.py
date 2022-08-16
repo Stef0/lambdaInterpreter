@@ -50,7 +50,7 @@ for i in range(100):
     dic['TRUE'] = TRUE
     dic['FALSE'] = FALSE
     dic['OR'] = OR
-    test = parser('((OR FALSE) FALSE)')
+    test = apply (apply(OR, TRUE), FALSE)
     test = betaHeadRec(test, dic)
 end = time.time()
 print((end - start)/100)

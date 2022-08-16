@@ -20,7 +20,7 @@ def CASub(term, var, sTerm):
     elif term.data =='%' and term.l != var:
         
         sTerm.getVar()
-        if term.l in sTerm.freshVar:
+        if term.l.data in sTerm.freshVar:
             freshify(term, term.l, sTerm.freshVar)
         
         CASub(term.r, var, sTerm) 
@@ -36,11 +36,11 @@ def freshify(term, var, badSet):
     '''
     in term, make the var fresh, with a new var that is not in badSet
     ''' 
-    new = var
+    new = var.data
     while new in badSet:
         new +='1'
     
-    term.alphaConv(var,new)    
+    term.alphaConv(var.data,new)    
 
             
 def extend(lam, dic):
@@ -84,6 +84,7 @@ def betaOpHead(lam, dic):
             var = lam.l.l
             term = lam.l.r  
             CASub(term, var, lam.r)
+
             return term
         
         elif lam.l.data.islower():
@@ -120,6 +121,32 @@ def betaHeadRec(lam, dic, limit = 100, func = betaOpHead):
         
         return lam
      
+def betaRecMemo(lam, dic, memo = {}, limit = 100, func = betaOpHead):
+    
+    initialLimit = limit
+    lam1 = parser(lam.show())
+    track = set()
+    
+    while (not lam1.betanormal) and limit>0:
+        a = lam1.show()
+        if a in memo:
+            lam1 = memo[a]
+            lam1.betanormal = True
+            break
+        lam1 = func(lam1,dic)
+        track.add(a)
+        limit = limit - 1
+    
+    if lam1.betanormal == True:
+        memo[lam.show()] = lam1
+        for i in track:
+            memo[i] = lam1
+        return lam1
+    if limit == 0:
+        lam1.limit = initialLimit
+        print("limit of applications reached")
+        
+        return lam1
     
     
 def apply(func1, func2, name = 'temp'):
@@ -144,56 +171,117 @@ ID = parser('(%x.x)')
 DUB = parser('(%x.(x x))')
 X = parser('(%x.y)')
 C = parser('((DUB ID) (%x.f))')
-dic = {}
+TRUE  = parser('(%x.(%y.x))')
+FALSE = parser('(%x.(%y.y))')
+OR  = parser('(%x.(%y.((x TRUE) y)))')
+AND = parser('(%x.(%y.((x y) FALSE)))')
+NOT = parser('(%x.((x FALSE) TRUE))')
 
-dic[A] = 'A'
+
+test = parser('((OR TRUE) FALSE)')
+test1 = parser('((OR FALSE) FALSE)')
+test2 = parser('((OR TRUE) TRUE)')
+test3 = parser('((OR FALSE) TRUE)')
+
+test4 = parser('((AND TRUE) FALSE)')
+test5 = parser('((AND FALSE) FALSE)')
+test6 = parser('((AND TRUE) TRUE)')
+test7 = parser('((AND FALSE) TRUE)')
+
+test8 = parser('(NOT TRUE)')
+test9 = parser('(NOT FALSE)')
+
+dic = {}
 
 dic['A'] = A
 dic['B'] = B
 dic['X'] = X
 dic['DUB'] = DUB
 dic['ID'] = ID
+dic['TRUE'] = TRUE
+dic['FALSE'] = FALSE
+dic['OR'] = OR
+dic['AND'] = AND
+dic['NOT'] = NOT
 
+memo = {}
+
+betaRecMemo(test8, dic, memo).show()
+
+
+#TODO in betaOpHead, understand why there is a bug while calling:
+betaOpHead(test, dic)  
+#but not
+test = betaOpHead(test, dic) 
+
+
+#test for capture avoid substitution:
+a = parser('(%x.y)')
+y = parser('y')
+x = parser('x')
+CASub(a, y, x)
+    
+
+#betaHeadRec(test,dic)
 
 #CASub(T, parser('x'), Z)
 
-B = betaOpHead(B, dic)    
-C1 = betaOpHead(C, dic)  
-C = betaHeadRec(C,dic)
+# B = betaOpHead(B, dic)    
+# C1 = betaOpHead(C, dic)  
+# C = betaHeadRec(C,dic)
+betaOpHead(test, dic)
 
 
+# start = time.time()
+# for i in range(100):
+#     TRUE  = parser('(%x.(%y.x))')
+#     FALSE = parser('(%x.(%y.y))')
+#     OR  = parser('(%x.(%y.((x TRUE) y)))')
+#     dic = {}
+#     dic['TRUE'] = TRUE
+#     dic['FALSE'] = FALSE
+#     dic['OR'] = OR
+#     test = parser('((OR TRUE) FALSE)')
+#     #test = betaHeadRec1(test, dic)
+# end = time.time()
+# time1 = ((end - start)/100)
+# print((end - start)/100)
 
-start = time.time()
-for i in range(100):
-    TRUE  = parser('(%x.(%y.x))')
-    FALSE = parser('(%x.(%y.y))')
-    OR  = parser('(%x.(%y.((x TRUE) y)))')
-    dic = {}
-    dic['TRUE'] = TRUE
-    dic['FALSE'] = FALSE
-    dic['OR'] = OR
-    test = parser('((OR TRUE) FALSE)')
-    #test = betaHeadRec1(test, dic)
-end = time.time()
-time1 = ((end - start)/100)
-print((end - start)/100)
+# start = time.time()
+# for i in range(100):
+#     TRUE  = parser('(%x.(%y.x))')
+#     FALSE = parser('(%x.(%y.y))')
+#     OR  = parser('(%x.(%y.((x TRUE) y)))')
+#     dic = {}
+#     dic['TRUE'] = TRUE
+#     dic['FALSE'] = FALSE
+#     dic['OR'] = OR
+#     test = apply (apply(OR, TRUE), FALSE)
+#     test = betaHeadRec(test, dic)
+# end = time.time()
+# time2 = ((end - start)/100)
+# print((end - start)/100)
 
-start = time.time()
-for i in range(100):
-    TRUE  = parser('(%x.(%y.x))')
-    FALSE = parser('(%x.(%y.y))')
-    OR  = parser('(%x.(%y.((x TRUE) y)))')
-    dic = {}
-    dic['TRUE'] = TRUE
-    dic['FALSE'] = FALSE
-    dic['OR'] = OR
-    test = apply (apply(OR, TRUE), FALSE)
-    test = betaHeadRec(test, dic)
-end = time.time()
-time2 = ((end - start)/100)
-print((end - start)/100)
+# print(time2 - time1)
 
-print(time2 - time1)
 
+# start = time.time()
+# for i in range(100):
+#     #test = parser('((OR TRUE) FALSE)')
+#     memo = {}
+#     betaRecMemo(test, dic, memo)
+# end = time.time()
+# time2 = ((end - start)/100)
+# print((end - start)/100)
+
+# start = time.time()
+# memo = {}
+# for i in range(100):
+#     #test = parser('((OR TRUE) FALSE)')
+#     throw = {}
+#     betaRecMemo(test, dic, memo)
+# end = time.time()
+# time2 = ((end - start)/100)
+# print((end - start)/100)
 
 
